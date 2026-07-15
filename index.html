@@ -1,0 +1,728 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Painel da Concessionária</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet">
+<script>
+  tailwind.config = {
+    theme: {
+      extend: {
+        colors: {
+          navy: { DEFAULT:'#0E1B2C', light:'#16283F', lighter:'#1E3450' },
+          amber: { DEFAULT:'#F2A93B', dark:'#D98F1E' },
+          steel: { DEFAULT:'#3B6E8F' },
+          canvas: '#F1F3F6',
+          ink: '#171C26',
+          danger: '#D64545',
+          success: '#2E9E6D',
+        },
+        fontFamily: {
+          display: ['"Space Grotesk"','sans-serif'],
+          sans: ['Inter','sans-serif'],
+          mono: ['"JetBrains Mono"','monospace'],
+        }
+      }
+    }
+  }
+</script>
+<style>
+  body { font-family: 'Inter', sans-serif; background-color:#F1F3F6; }
+  .font-display { font-family: 'Space Grotesk', sans-serif; }
+  .font-plate { font-family: 'JetBrains Mono', monospace; letter-spacing: 0.06em; }
+  ::-webkit-scrollbar { width: 8px; height: 8px; }
+  ::-webkit-scrollbar-thumb { background: #C7CDD6; border-radius: 4px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  .nav-item.active { background: #16283F; border-left-color:#F2A93B; }
+  .nav-item.active .nav-dot { background:#F2A93B; }
+  .modal-backdrop { background: rgba(14,27,44,0.55); backdrop-filter: blur(2px); }
+  .field-error { color:#D64545; font-size:0.75rem; margin-top:2px; }
+  .input-err { border-color:#D64545 !important; box-shadow: 0 0 0 1px #D64545; }
+  .toast-enter { animation: toastIn .25s ease-out; }
+  @keyframes toastIn { from { opacity:0; transform: translateY(-8px);} to {opacity:1; transform:translateY(0);} }
+  .spin { animation: spin 0.7s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg);} }
+  table.plate-table tbody tr { transition: background-color .12s ease; }
+  table.plate-table tbody tr:hover { background-color:#F7F4EC; }
+  .badge { font-family:'JetBrains Mono',monospace; font-size:0.68rem; letter-spacing:0.04em; padding: 2px 8px; border-radius: 3px; font-weight:600; border:1px solid transparent;}
+</style>
+</head>
+<body class="text-ink antialiased">
+
+<div class="flex min-h-screen">
+  <!-- SIDEBAR -->
+  <aside class="w-64 bg-navy text-white flex flex-col shrink-0 fixed h-screen">
+    <div class="px-6 py-7 border-b border-white/10">
+      <div class="flex items-center gap-3">
+        <div class="w-9 h-9 rounded bg-amber flex items-center justify-center font-display font-bold text-navy text-lg">V</div>
+        <div>
+          <p class="font-display font-semibold text-[15px] leading-tight">Concessionária</p>
+          <p class="text-[11px] text-white/40 font-plate">painel v1</p>
+        </div>
+      </div>
+    </div>
+    <nav class="flex-1 py-4">
+      <button data-tab="veiculos" class="nav-item active w-full flex items-center gap-3 px-6 py-3 border-l-2 border-transparent text-left text-sm font-medium text-white/90 hover:bg-navy-light transition-colors">
+        <span class="nav-dot w-1.5 h-1.5 rounded-full bg-white/30"></span>
+        Gerenciar Veículos
+      </button>
+      <button data-tab="montadoras" class="nav-item w-full flex items-center gap-3 px-6 py-3 border-l-2 border-transparent text-left text-sm font-medium text-white/90 hover:bg-navy-light transition-colors">
+        <span class="nav-dot w-1.5 h-1.5 rounded-full bg-white/30"></span>
+        Gerenciar Montadoras
+      </button>
+    </nav>
+    <div class="px-6 py-4 border-t border-white/10">
+      <p class="text-[11px] text-white/35 font-plate" id="apiStatus">verificando api…</p>
+    </div>
+  </aside>
+
+  <!-- MAIN -->
+  <main class="ml-64 flex-1 p-8">
+
+    <!-- ===================== VEICULOS TAB ===================== -->
+    <section id="tab-veiculos" class="space-y-6">
+      <div class="flex items-end justify-between">
+        <div>
+          <p class="text-xs font-plate text-steel uppercase tracking-wider mb-1">Estoque</p>
+          <h1 class="font-display text-2xl font-semibold text-navy">Veículos cadastrados</h1>
+        </div>
+        <button onclick="openVeiculoModal()" class="bg-navy text-white text-sm font-medium px-4 py-2.5 rounded-md hover:bg-navy-light transition flex items-center gap-2">
+          <span class="text-amber text-lg leading-none">+</span> Novo veículo
+        </button>
+      </div>
+
+      <!-- filtros -->
+      <div class="bg-white rounded-lg border border-black/5 shadow-sm p-4">
+        <div class="grid grid-cols-2 md:grid-cols-5 gap-3">
+          <div>
+            <label class="text-[11px] font-medium text-ink/50 uppercase tracking-wide">Chassi</label>
+            <input id="f_chassi" type="text" placeholder="Chassi" class="mt-1 w-full text-sm border border-black/10 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-amber/50">
+          </div>
+          <div>
+            <label class="text-[11px] font-medium text-ink/50 uppercase tracking-wide">Modelo</label>
+            <input id="f_modelo" type="text" placeholder="Modelo" class="mt-1 w-full text-sm border border-black/10 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-amber/50">
+          </div>
+          <div>
+            <label class="text-[11px] font-medium text-ink/50 uppercase tracking-wide">Montadora</label>
+            <input id="f_nomeMontadora" type="text" placeholder="Nome da montadora" class="mt-1 w-full text-sm border border-black/10 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-amber/50">
+          </div>
+          <div>
+            <label class="text-[11px] font-medium text-ink/50 uppercase tracking-wide">Categoria</label>
+            <select id="f_categoria" class="mt-1 w-full text-sm border border-black/10 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-amber/50 bg-white">
+              <option value="">Todas</option>
+              <option value="SEDAN">SEDAN</option>
+              <option value="SUV">SUV</option>
+              <option value="HATCH">HATCH</option>
+              <option value="PICKUP">PICKUP</option>
+              <option value="ESPORTIVO">ESPORTIVO</option>
+            </select>
+          </div>
+          <div>
+            <label class="text-[11px] font-medium text-ink/50 uppercase tracking-wide">Ano fabricação</label>
+            <input id="f_anoFabricacao" type="number" placeholder="Ex: 2024" class="mt-1 w-full text-sm border border-black/10 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-amber/50">
+          </div>
+        </div>
+        <div class="flex gap-2 mt-3">
+          <button onclick="loadVeiculos()" class="bg-steel text-white text-sm font-medium px-4 py-2 rounded-md hover:opacity-90 transition">Filtrar</button>
+          <button onclick="clearVeiculoFilters()" class="text-sm font-medium px-4 py-2 rounded-md border border-black/10 hover:bg-black/5 transition">Limpar</button>
+        </div>
+      </div>
+
+      <!-- tabela -->
+      <div class="bg-white rounded-lg border border-black/5 shadow-sm overflow-hidden">
+        <table class="w-full text-sm plate-table">
+          <thead>
+            <tr class="bg-canvas text-left text-[11px] uppercase tracking-wide text-ink/50 border-b border-black/5">
+              <th class="px-5 py-3 font-semibold">Chassi</th>
+              <th class="px-5 py-3 font-semibold">Modelo</th>
+              <th class="px-5 py-3 font-semibold">Montadora</th>
+              <th class="px-5 py-3 font-semibold">Categoria</th>
+              <th class="px-5 py-3 font-semibold">Fabricação</th>
+              <th class="px-5 py-3 font-semibold">Preço</th>
+              <th class="px-5 py-3 font-semibold text-right">Ações</th>
+            </tr>
+          </thead>
+          <tbody id="veiculosTbody">
+            <tr><td colspan="7" class="px-5 py-10 text-center text-ink/40">Carregando…</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ===================== MONTADORAS TAB ===================== -->
+    <section id="tab-montadoras" class="space-y-6 hidden">
+      <div class="flex items-end justify-between">
+        <div>
+          <p class="text-xs font-plate text-steel uppercase tracking-wider mb-1">Fabricantes</p>
+          <h1 class="font-display text-2xl font-semibold text-navy">Montadoras cadastradas</h1>
+        </div>
+        <button onclick="openMontadoraModal()" class="bg-navy text-white text-sm font-medium px-4 py-2.5 rounded-md hover:bg-navy-light transition flex items-center gap-2">
+          <span class="text-amber text-lg leading-none">+</span> Nova montadora
+        </button>
+      </div>
+
+      <div class="bg-white rounded-lg border border-black/5 shadow-sm p-4">
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <div>
+            <label class="text-[11px] font-medium text-ink/50 uppercase tracking-wide">Nome</label>
+            <input id="fm_nome" type="text" placeholder="Nome da montadora" class="mt-1 w-full text-sm border border-black/10 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-amber/50">
+          </div>
+          <div>
+            <label class="text-[11px] font-medium text-ink/50 uppercase tracking-wide">País de origem</label>
+            <input id="fm_paisOrigem" type="text" placeholder="País" class="mt-1 w-full text-sm border border-black/10 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-amber/50">
+          </div>
+          <div class="flex items-end gap-2 md:col-span-2">
+            <button onclick="loadMontadoras()" class="bg-steel text-white text-sm font-medium px-4 py-2 rounded-md hover:opacity-90 transition">Filtrar</button>
+            <button onclick="clearMontadoraFilters()" class="text-sm font-medium px-4 py-2 rounded-md border border-black/10 hover:bg-black/5 transition">Limpar</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="bg-white rounded-lg border border-black/5 shadow-sm overflow-hidden">
+        <table class="w-full text-sm plate-table">
+          <thead>
+            <tr class="bg-canvas text-left text-[11px] uppercase tracking-wide text-ink/50 border-b border-black/5">
+              <th class="px-5 py-3 font-semibold">Nome</th>
+              <th class="px-5 py-3 font-semibold">País de origem</th>
+              <th class="px-5 py-3 font-semibold">Fundação</th>
+              <th class="px-5 py-3 font-semibold text-right">Ações</th>
+            </tr>
+          </thead>
+          <tbody id="montadorasTbody">
+            <tr><td colspan="4" class="px-5 py-10 text-center text-ink/40">Carregando…</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<!-- ===================== TOASTS ===================== -->
+<div id="toastContainer" class="fixed top-5 right-5 z-[100] space-y-2 w-[360px]"></div>
+
+<!-- ===================== MODAL VEICULO ===================== -->
+<div id="veiculoModalBackdrop" class="fixed inset-0 modal-backdrop hidden items-center justify-center z-50 p-4">
+  <div class="bg-white rounded-xl w-full max-w-lg shadow-2xl overflow-hidden">
+    <div class="px-6 py-4 border-b border-black/5 flex items-center justify-between bg-canvas">
+      <h2 id="veiculoModalTitle" class="font-display font-semibold text-navy text-lg">Novo veículo</h2>
+      <button onclick="closeVeiculoModal()" class="text-ink/40 hover:text-ink text-xl leading-none">&times;</button>
+    </div>
+    <form id="veiculoForm" class="px-6 py-5 space-y-4 max-h-[70vh] overflow-y-auto">
+      <input type="hidden" id="v_id">
+      <div>
+        <label class="text-xs font-medium text-ink/60">Chassi *</label>
+        <input id="v_chassi" class="mt-1 w-full text-sm border border-black/10 rounded-md px-3 py-2 font-plate focus:outline-none focus:ring-2 focus:ring-amber/50">
+        <p class="field-error hidden" id="err_chassi"></p>
+      </div>
+      <div>
+        <label class="text-xs font-medium text-ink/60">Modelo *</label>
+        <input id="v_modelo" class="mt-1 w-full text-sm border border-black/10 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-amber/50">
+        <p class="field-error hidden" id="err_modelo"></p>
+      </div>
+      <div class="grid grid-cols-2 gap-4">
+        <div>
+          <label class="text-xs font-medium text-ink/60">Data de fabricação *</label>
+          <input id="v_dataFabricacao" type="date" class="mt-1 w-full text-sm border border-black/10 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-amber/50">
+          <p class="field-error hidden" id="err_dataFabricacao"></p>
+        </div>
+        <div>
+          <label class="text-xs font-medium text-ink/60">Categoria</label>
+          <select id="v_categoria" class="mt-1 w-full text-sm border border-black/10 rounded-md px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-amber/50">
+            <option value="SEDAN">SEDAN</option>
+            <option value="SUV">SUV</option>
+            <option value="HATCH">HATCH</option>
+            <option value="PICKUP">PICKUP</option>
+            <option value="ESPORTIVO">ESPORTIVO</option>
+          </select>
+          <p class="field-error hidden" id="err_categoria"></p>
+        </div>
+      </div>
+      <div class="grid grid-cols-2 gap-4">
+        <div>
+          <label class="text-xs font-medium text-ink/60">Preço</label>
+          <input id="v_preco" type="number" step="0.01" min="0" class="mt-1 w-full text-sm border border-black/10 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-amber/50">
+          <p class="field-error hidden" id="err_preco"></p>
+        </div>
+        <div>
+          <label class="text-xs font-medium text-ink/60">Montadora *</label>
+          <select id="v_idMontadora" class="mt-1 w-full text-sm border border-black/10 rounded-md px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-amber/50">
+            <option value="">Selecione…</option>
+          </select>
+          <p class="field-error hidden" id="err_idMontadora"></p>
+        </div>
+      </div>
+      <p class="field-error hidden" id="err_geral_veiculo"></p>
+    </form>
+    <div class="px-6 py-4 border-t border-black/5 flex justify-end gap-2 bg-canvas">
+      <button onclick="closeVeiculoModal()" class="text-sm font-medium px-4 py-2 rounded-md border border-black/10 hover:bg-black/5 transition">Cancelar</button>
+      <button onclick="submitVeiculo()" class="bg-navy text-white text-sm font-medium px-4 py-2 rounded-md hover:bg-navy-light transition">Salvar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===================== MODAL MONTADORA ===================== -->
+<div id="montadoraModalBackdrop" class="fixed inset-0 modal-backdrop hidden items-center justify-center z-50 p-4">
+  <div class="bg-white rounded-xl w-full max-w-md shadow-2xl overflow-hidden">
+    <div class="px-6 py-4 border-b border-black/5 flex items-center justify-between bg-canvas">
+      <h2 id="montadoraModalTitle" class="font-display font-semibold text-navy text-lg">Nova montadora</h2>
+      <button onclick="closeMontadoraModal()" class="text-ink/40 hover:text-ink text-xl leading-none">&times;</button>
+    </div>
+    <form id="montadoraForm" class="px-6 py-5 space-y-4">
+      <input type="hidden" id="m_id">
+      <div>
+        <label class="text-xs font-medium text-ink/60">Nome * (2 a 50 caracteres)</label>
+        <input id="m_nome" maxlength="50" class="mt-1 w-full text-sm border border-black/10 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-amber/50">
+        <p class="field-error hidden" id="errm_nome"></p>
+      </div>
+      <div>
+        <label class="text-xs font-medium text-ink/60">País de origem *</label>
+        <input id="m_paisOrigem" class="mt-1 w-full text-sm border border-black/10 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-amber/50">
+        <p class="field-error hidden" id="errm_paisOrigem"></p>
+      </div>
+      <div>
+        <label class="text-xs font-medium text-ink/60">Data de fundação *</label>
+        <input id="m_dataFundacao" type="date" class="mt-1 w-full text-sm border border-black/10 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-amber/50">
+        <p class="field-error hidden" id="errm_dataFundacao"></p>
+      </div>
+      <p class="field-error hidden" id="err_geral_montadora"></p>
+    </form>
+    <div class="px-6 py-4 border-t border-black/5 flex justify-end gap-2 bg-canvas">
+      <button onclick="closeMontadoraModal()" class="text-sm font-medium px-4 py-2 rounded-md border border-black/10 hover:bg-black/5 transition">Cancelar</button>
+      <button onclick="submitMontadora()" class="bg-navy text-white text-sm font-medium px-4 py-2 rounded-md hover:bg-navy-light transition">Salvar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===================== MODAL CONFIRM DELETE ===================== -->
+<div id="confirmModalBackdrop" class="fixed inset-0 modal-backdrop hidden items-center justify-center z-[60] p-4">
+  <div class="bg-white rounded-xl w-full max-w-sm shadow-2xl p-6">
+    <h3 class="font-display font-semibold text-navy text-lg mb-2">Confirmar exclusão</h3>
+    <p id="confirmModalText" class="text-sm text-ink/60 mb-5">Tem certeza que deseja excluir este item? Esta ação não pode ser desfeita.</p>
+    <div class="flex justify-end gap-2">
+      <button onclick="closeConfirmModal()" class="text-sm font-medium px-4 py-2 rounded-md border border-black/10 hover:bg-black/5 transition">Cancelar</button>
+      <button id="confirmModalBtn" class="bg-danger text-white text-sm font-medium px-4 py-2 rounded-md hover:opacity-90 transition">Excluir</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const API_BASE = 'https://carros-api-socm.onrender.com';
+let montadorasCache = [];
+let pendingConfirmAction = null;
+
+/* ---------------------------------------------------------- */
+/* Utilidades gerais                                            */
+/* ---------------------------------------------------------- */
+
+function escapeHtml(str) {
+  if (str === null || str === undefined) return '';
+  return String(str).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+function formatDate(iso) {
+  if (!iso) return '—';
+  const d = new Date(iso + 'T00:00:00');
+  if (isNaN(d)) return iso;
+  return d.toLocaleDateString('pt-BR');
+}
+
+function formatPrice(v) {
+  if (v === null || v === undefined || v === '') return '—';
+  return Number(v).toLocaleString('pt-BR', { style:'currency', currency:'BRL' });
+}
+
+function categoryBadgeClass(cat) {
+  const map = {
+    SEDAN:    'bg-steel/10 text-steel border-steel/30',
+    SUV:      'bg-success/10 text-success border-success/30',
+    HATCH:    'bg-purple-500/10 text-purple-600 border-purple-300',
+    PICKUP:   'bg-amber/20 text-amber-dark border-amber/40',
+    ESPORTIVO:'bg-danger/10 text-danger border-danger/30',
+  };
+  return map[cat] || 'bg-black/5 text-ink/60 border-black/10';
+}
+
+function showToast(message, type = 'error') {
+  const container = document.getElementById('toastContainer');
+  const colors = {
+    error:   { bg:'bg-white', border:'border-danger', text:'text-danger', icon:'✕' },
+    success: { bg:'bg-white', border:'border-success', text:'text-success', icon:'✓' },
+  };
+  const c = colors[type] || colors.error;
+  const el = document.createElement('div');
+  el.className = `toast-enter ${c.bg} border-l-4 ${c.border} rounded-md shadow-lg px-4 py-3 flex items-start gap-3`;
+  el.innerHTML = `
+    <span class="${c.text} font-bold text-sm mt-0.5">${c.icon}</span>
+    <p class="text-sm text-ink/80 flex-1">${escapeHtml(message)}</p>
+    <button class="text-ink/30 hover:text-ink/60 text-sm" onclick="this.closest('div.toast-enter').remove()">&times;</button>
+  `;
+  container.appendChild(el);
+  setTimeout(() => el.remove(), 6000);
+}
+
+/* Chamada de API padronizada, tratando o formato ErroResposta */
+async function apiCall(path, options = {}) {
+  let response;
+  try {
+    response = await fetch(`${API_BASE}${path}`, {
+      headers: { 'Content-Type': 'application/json' },
+      ...options,
+    });
+  } catch (networkErr) {
+    showToast('Não foi possível conectar à API em ' + API_BASE + '. Verifique se o servidor está rodando.');
+    throw networkErr;
+  }
+
+  if (response.status === 204) return null;
+
+  let body = null;
+  const text = await response.text();
+  if (text) {
+    try { body = JSON.parse(text); } catch (e) { body = null; }
+  }
+
+  if (!response.ok) {
+    const err = new Error((body && body.mensagem) || `Erro ${response.status}`);
+    err.status = response.status;
+    err.payload = body;
+    throw err;
+  }
+
+  return body;
+}
+
+/* Limpa marcações de erro de um formulário */
+function clearFormErrors(fieldIds, generalId) {
+  fieldIds.forEach(id => {
+    const errEl = document.getElementById('err_' + id) || document.getElementById('errm_' + id);
+    const inputEl = document.getElementById((generalId.includes('veiculo') ? 'v_' : 'm_') + id);
+    if (errEl) { errEl.classList.add('hidden'); errEl.textContent = ''; }
+    if (inputEl) inputEl.classList.remove('input-err');
+  });
+  const gen = document.getElementById(generalId);
+  if (gen) { gen.classList.add('hidden'); gen.textContent = ''; }
+}
+
+/* Aplica erro geral + erros de campo (ErroResposta) num formulário */
+function applyErroResposta(err, prefix, generalId) {
+  const payload = err.payload;
+  if (!payload) {
+    document.getElementById(generalId).textContent = err.message || 'Ocorreu um erro inesperado.';
+    document.getElementById(generalId).classList.remove('hidden');
+    showToast(err.message || 'Ocorreu um erro inesperado.');
+    return;
+  }
+  if (payload.mensagem) {
+    document.getElementById(generalId).textContent = payload.mensagem;
+    document.getElementById(generalId).classList.remove('hidden');
+  }
+  if (Array.isArray(payload.erros) && payload.erros.length) {
+    payload.erros.forEach(e => {
+      const inputEl = document.getElementById(prefix + e.campo);
+      const errElId = prefix === 'v_' ? 'err_' + e.campo : 'errm_' + e.campo;
+      const errEl = document.getElementById(errElId);
+      if (errEl) {
+        errEl.textContent = e.erro;
+        errEl.classList.remove('hidden');
+      }
+      if (inputEl) inputEl.classList.add('input-err');
+    });
+  }
+  showToast(payload.mensagem || 'Corrija os campos destacados.');
+}
+
+function openConfirmModal(text, onConfirm) {
+  document.getElementById('confirmModalText').textContent = text;
+  pendingConfirmAction = onConfirm;
+  document.getElementById('confirmModalBackdrop').classList.remove('hidden');
+  document.getElementById('confirmModalBackdrop').classList.add('flex');
+}
+function closeConfirmModal() {
+  document.getElementById('confirmModalBackdrop').classList.add('hidden');
+  document.getElementById('confirmModalBackdrop').classList.remove('flex');
+  pendingConfirmAction = null;
+}
+document.getElementById('confirmModalBtn').addEventListener('click', async () => {
+  if (pendingConfirmAction) await pendingConfirmAction();
+  closeConfirmModal();
+});
+
+/* ---------------------------------------------------------- */
+/* Navegação (tabs)                                             */
+/* ---------------------------------------------------------- */
+document.querySelectorAll('.nav-item').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.nav-item').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    const tab = btn.dataset.tab;
+    document.getElementById('tab-veiculos').classList.toggle('hidden', tab !== 'veiculos');
+    document.getElementById('tab-montadoras').classList.toggle('hidden', tab !== 'montadoras');
+  });
+});
+
+/* ---------------------------------------------------------- */
+/* VEÍCULOS                                                     */
+/* ---------------------------------------------------------- */
+
+function clearVeiculoFilters() {
+  ['f_chassi','f_modelo','f_nomeMontadora','f_categoria','f_anoFabricacao'].forEach(id => document.getElementById(id).value = '');
+  loadVeiculos();
+}
+
+async function loadVeiculos() {
+  const tbody = document.getElementById('veiculosTbody');
+  tbody.innerHTML = `<tr><td colspan="7" class="px-5 py-10 text-center text-ink/40"><span class="inline-block w-4 h-4 border-2 border-navy/20 border-t-navy rounded-full spin"></span></td></tr>`;
+
+  const params = new URLSearchParams();
+  const chassi = document.getElementById('f_chassi').value.trim();
+  const modelo = document.getElementById('f_modelo').value.trim();
+  const nomeMontadora = document.getElementById('f_nomeMontadora').value.trim();
+  const categoria = document.getElementById('f_categoria').value;
+  const anoFabricacao = document.getElementById('f_anoFabricacao').value;
+  if (chassi) params.set('chassi', chassi);
+  if (modelo) params.set('modelo', modelo);
+  if (nomeMontadora) params.set('nomeMontadora', nomeMontadora);
+  if (categoria) params.set('categoria', categoria);
+  if (anoFabricacao) params.set('anoFabricacao', anoFabricacao);
+
+  try {
+    const data = await apiCall(`/veiculos?${params.toString()}`);
+    renderVeiculos(data || []);
+  } catch (e) {
+    tbody.innerHTML = `<tr><td colspan="7" class="px-5 py-10 text-center text-danger text-sm">Falha ao carregar veículos.</td></tr>`;
+  }
+}
+
+function renderVeiculos(list) {
+  const tbody = document.getElementById('veiculosTbody');
+  if (!list.length) {
+    tbody.innerHTML = `<tr><td colspan="7" class="px-5 py-10 text-center text-ink/40 text-sm">Nenhum veículo encontrado.</td></tr>`;
+    return;
+  }
+  tbody.innerHTML = list.map(v => `
+    <tr class="border-b border-black/5 last:border-0">
+      <td class="px-5 py-3 font-plate text-[13px] text-ink/80">${escapeHtml(v.chassi)}</td>
+      <td class="px-5 py-3 font-medium">${escapeHtml(v.modelo)}</td>
+      <td class="px-5 py-3 text-ink/70">${escapeHtml(v.montadora ? v.montadora.nome : '—')}</td>
+      <td class="px-5 py-3"><span class="badge ${categoryBadgeClass(v.categoria)}">${escapeHtml(v.categoria || '—')}</span></td>
+      <td class="px-5 py-3 text-ink/70">${formatDate(v.dataFabricacao)}</td>
+      <td class="px-5 py-3 text-ink/70">${formatPrice(v.preco)}</td>
+      <td class="px-5 py-3 text-right whitespace-nowrap">
+        <button onclick='editVeiculo(${JSON.stringify(v).replace(/'/g,"&apos;")})' class="text-steel hover:underline text-xs font-medium mr-3">Editar</button>
+        <button onclick="deleteVeiculo('${v.id}', '${escapeHtml(v.modelo)}')" class="text-danger hover:underline text-xs font-medium">Excluir</button>
+      </td>
+    </tr>
+  `).join('');
+}
+
+async function loadMontadorasSelect() {
+  try {
+    const data = await apiCall('/montadoras');
+    montadorasCache = data || [];
+    const select = document.getElementById('v_idMontadora');
+    select.innerHTML = '<option value="">Selecione…</option>' + montadorasCache.map(m =>
+      `<option value="${m.id}">${escapeHtml(m.nome)}</option>`
+    ).join('');
+  } catch (e) {
+    showToast('Não foi possível carregar a lista de montadoras.');
+  }
+}
+
+function openVeiculoModal() {
+  document.getElementById('veiculoForm').reset();
+  document.getElementById('v_id').value = '';
+  document.getElementById('veiculoModalTitle').textContent = 'Novo veículo';
+  clearFormErrors(['chassi','modelo','dataFabricacao','categoria','preco','idMontadora'], 'err_geral_veiculo');
+  loadMontadorasSelect();
+  const bd = document.getElementById('veiculoModalBackdrop');
+  bd.classList.remove('hidden'); bd.classList.add('flex');
+}
+function closeVeiculoModal() {
+  const bd = document.getElementById('veiculoModalBackdrop');
+  bd.classList.add('hidden'); bd.classList.remove('flex');
+}
+
+async function editVeiculo(v) {
+  openVeiculoModal();
+  await loadMontadorasSelect();
+  document.getElementById('veiculoModalTitle').textContent = 'Editar veículo';
+  document.getElementById('v_id').value = v.id;
+  document.getElementById('v_chassi').value = v.chassi || '';
+  document.getElementById('v_modelo').value = v.modelo || '';
+  document.getElementById('v_dataFabricacao').value = v.dataFabricacao ? v.dataFabricacao.substring(0,10) : '';
+  document.getElementById('v_categoria').value = v.categoria || 'SEDAN';
+  document.getElementById('v_preco').value = v.preco ?? '';
+  document.getElementById('v_idMontadora').value = v.montadora ? v.montadora.id : '';
+}
+
+async function submitVeiculo() {
+  clearFormErrors(['chassi','modelo','dataFabricacao','categoria','preco','idMontadora'], 'err_geral_veiculo');
+  const id = document.getElementById('v_id').value;
+  const payload = {
+    chassi: document.getElementById('v_chassi').value.trim(),
+    modelo: document.getElementById('v_modelo').value.trim(),
+    dataFabricacao: document.getElementById('v_dataFabricacao').value,
+    categoria: document.getElementById('v_categoria').value,
+    preco: document.getElementById('v_preco').value ? Number(document.getElementById('v_preco').value) : null,
+    idMontadora: document.getElementById('v_idMontadora').value,
+  };
+  try {
+    if (id) {
+      await apiCall(`/veiculos/${id}`, { method: 'PUT', body: JSON.stringify(payload) });
+      showToast('Veículo atualizado com sucesso.', 'success');
+    } else {
+      await apiCall('/veiculos', { method: 'POST', body: JSON.stringify(payload) });
+      showToast('Veículo cadastrado com sucesso.', 'success');
+    }
+    closeVeiculoModal();
+    loadVeiculos();
+  } catch (err) {
+    applyErroResposta(err, 'v_', 'err_geral_veiculo');
+  }
+}
+
+function deleteVeiculo(id, modelo) {
+  openConfirmModal(`Excluir o veículo "${modelo}"? Esta ação não pode ser desfeita.`, async () => {
+    try {
+      await apiCall(`/veiculos/${id}`, { method: 'DELETE' });
+      showToast('Veículo excluído com sucesso.', 'success');
+      loadVeiculos();
+    } catch (err) {
+      showToast((err.payload && err.payload.mensagem) || 'Não foi possível excluir o veículo.');
+    }
+  });
+}
+
+/* ---------------------------------------------------------- */
+/* MONTADORAS                                                    */
+/* ---------------------------------------------------------- */
+
+function clearMontadoraFilters() {
+  document.getElementById('fm_nome').value = '';
+  document.getElementById('fm_paisOrigem').value = '';
+  loadMontadoras();
+}
+
+async function loadMontadoras() {
+  const tbody = document.getElementById('montadorasTbody');
+  tbody.innerHTML = `<tr><td colspan="4" class="px-5 py-10 text-center text-ink/40"><span class="inline-block w-4 h-4 border-2 border-navy/20 border-t-navy rounded-full spin"></span></td></tr>`;
+
+  const params = new URLSearchParams();
+  const nome = document.getElementById('fm_nome').value.trim();
+  const paisOrigem = document.getElementById('fm_paisOrigem').value.trim();
+  if (nome) params.set('nome', nome);
+  if (paisOrigem) params.set('paisOrigem', paisOrigem);
+
+  try {
+    const data = await apiCall(`/montadoras?${params.toString()}`);
+    montadorasCache = data || [];
+    renderMontadoras(montadorasCache);
+  } catch (e) {
+    tbody.innerHTML = `<tr><td colspan="4" class="px-5 py-10 text-center text-danger text-sm">Falha ao carregar montadoras.</td></tr>`;
+  }
+}
+
+function renderMontadoras(list) {
+  const tbody = document.getElementById('montadorasTbody');
+  if (!list.length) {
+    tbody.innerHTML = `<tr><td colspan="4" class="px-5 py-10 text-center text-ink/40 text-sm">Nenhuma montadora encontrada.</td></tr>`;
+    return;
+  }
+  tbody.innerHTML = list.map(m => `
+    <tr class="border-b border-black/5 last:border-0">
+      <td class="px-5 py-3 font-medium">${escapeHtml(m.nome)}</td>
+      <td class="px-5 py-3 text-ink/70">${escapeHtml(m.paisOrigem)}</td>
+      <td class="px-5 py-3 text-ink/70">${formatDate(m.dataFundacao)}</td>
+      <td class="px-5 py-3 text-right whitespace-nowrap">
+        <button onclick='editMontadora(${JSON.stringify(m).replace(/'/g,"&apos;")})' class="text-steel hover:underline text-xs font-medium mr-3">Editar</button>
+        <button onclick="deleteMontadora('${m.id}', '${escapeHtml(m.nome)}')" class="text-danger hover:underline text-xs font-medium">Excluir</button>
+      </td>
+    </tr>
+  `).join('');
+}
+
+function openMontadoraModal() {
+  document.getElementById('montadoraForm').reset();
+  document.getElementById('m_id').value = '';
+  document.getElementById('montadoraModalTitle').textContent = 'Nova montadora';
+  clearFormErrors(['nome','paisOrigem','dataFundacao'], 'err_geral_montadora');
+  const bd = document.getElementById('montadoraModalBackdrop');
+  bd.classList.remove('hidden'); bd.classList.add('flex');
+}
+function closeMontadoraModal() {
+  const bd = document.getElementById('montadoraModalBackdrop');
+  bd.classList.add('hidden'); bd.classList.remove('flex');
+}
+
+function editMontadora(m) {
+  openMontadoraModal();
+  document.getElementById('montadoraModalTitle').textContent = 'Editar montadora';
+  document.getElementById('m_id').value = m.id;
+  document.getElementById('m_nome').value = m.nome || '';
+  document.getElementById('m_paisOrigem').value = m.paisOrigem || '';
+  document.getElementById('m_dataFundacao').value = m.dataFundacao ? m.dataFundacao.substring(0,10) : '';
+}
+
+async function submitMontadora() {
+  clearFormErrors(['nome','paisOrigem','dataFundacao'], 'err_geral_montadora');
+  const id = document.getElementById('m_id').value;
+  const payload = {
+    nome: document.getElementById('m_nome').value.trim(),
+    paisOrigem: document.getElementById('m_paisOrigem').value.trim(),
+    dataFundacao: document.getElementById('m_dataFundacao').value,
+  };
+  if (id) payload.id = id;
+  try {
+    if (id) {
+      await apiCall(`/montadoras/${id}`, { method: 'PUT', body: JSON.stringify(payload) });
+      showToast('Montadora atualizada com sucesso.', 'success');
+    } else {
+      await apiCall('/montadoras', { method: 'POST', body: JSON.stringify(payload) });
+      showToast('Montadora cadastrada com sucesso.', 'success');
+    }
+    closeMontadoraModal();
+    loadMontadoras();
+  } catch (err) {
+    applyErroResposta(err, 'm_', 'err_geral_montadora');
+  }
+}
+
+function deleteMontadora(id, nome) {
+  openConfirmModal(`Excluir a montadora "${nome}"? Veículos vinculados podem ser afetados.`, async () => {
+    try {
+      await apiCall(`/montadoras/${id}`, { method: 'DELETE' });
+      showToast('Montadora excluída com sucesso.', 'success');
+      loadMontadoras();
+    } catch (err) {
+      showToast((err.payload && err.payload.mensagem) || 'Não foi possível excluir a montadora.');
+    }
+  });
+}
+
+/* ---------------------------------------------------------- */
+/* Bootstrap                                                     */
+/* ---------------------------------------------------------- */
+async function checkApiStatus() {
+  const el = document.getElementById('apiStatus');
+  try {
+    await fetch(`${API_BASE}/montadoras`, { method: 'GET' });
+    el.textContent = '● api conectada';
+    el.classList.remove('text-white/40');
+    el.classList.add('text-success');
+  } catch (e) {
+    el.textContent = '● api offline';
+    el.classList.remove('text-white/40');
+    el.classList.add('text-danger');
+  }
+}
+
+checkApiStatus();
+loadVeiculos();
+loadMontadoras();
+</script>
+</body>
+</html>
